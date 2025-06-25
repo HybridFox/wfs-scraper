@@ -1,0 +1,62 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      bottleneck:
+        specifier: ^2.19.5
+        version: 2.19.5
+      p-limit:
+        specifier: ^6.2.0
+        version: 6.2.0
+      random-useragent:
+        specifier: ^0.5.0
+        version: 0.5.0
+
+packages:
+
+  bottleneck@2.19.5:
+    resolution: {integrity: sha512-VHiNCbI1lKdl44tGrhNfU3lup0Tj/ZBMJB5/2ZbNXRCPuRCO7ed2mgcK4r17y+KB2EfuYuRaVlwNbAeaWGSpbw==}
+
+  json-stringify-safe@5.0.1:
+    resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
+
+  p-limit@6.2.0:
+    resolution: {integrity: sha512-kuUqqHNUqoIWp/c467RI4X6mmyuojY5jGutNU0wVTmEOOfcuwLqyMVoAi9MKi2Ak+5i9+nhmrK4ufZE8069kHA==}
+    engines: {node: '>=18'}
+
+  random-seed@0.3.0:
+    resolution: {integrity: sha512-y13xtn3kcTlLub3HKWXxJNeC2qK4mB59evwZ5EkeRlolx+Bp2ztF7LbcZmyCnOqlHQrLnfuNbi1sVmm9lPDlDA==}
+    engines: {node: '>= 0.6.0'}
+
+  random-useragent@0.5.0:
+    resolution: {integrity: sha512-FUMkqVdZeoSff5tErNL3FFGYXElDWZ1bEuedhm5u9MdCFwANriJWbHvDRYrLTOzp/fBsBGu5J1cWtDgifa97aQ==}
+
+  yocto-queue@1.2.1:
+    resolution: {integrity: sha512-AyeEbWOu/TAXdxlV9wmGcR0+yh2j3vYPGOECcIj2S7MkrLyC7ne+oye2BKTItt0ii2PHk4cDy+95+LshzbXnGg==}
+    engines: {node: '>=12.20'}
+
+snapshots:
+
+  bottleneck@2.19.5: {}
+
+  json-stringify-safe@5.0.1: {}
+
+  p-limit@6.2.0:
+    dependencies:
+      yocto-queue: 1.2.1
+
+  random-seed@0.3.0:
+    dependencies:
+      json-stringify-safe: 5.0.1
+
+  random-useragent@0.5.0:
+    dependencies:
+      random-seed: 0.3.0
+
+  yocto-queue@1.2.1: {}
