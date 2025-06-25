@@ -6,19 +6,19 @@ const limiter = new Bottleneck({
 	maxConcurrent: 5,
 });
 
-const belgiumExtent = {
-	xmin: 5.7,   // West (longitude)
-	ymin: 49.9,  // South (latitude)
-	xmax: 5.9,   // East (longitude)
-	ymax: 50   // North (latitude)
-};
-
 // const belgiumExtent = {
-// 	ymin: 49.95,
-// 	xmin: 5.15,
-// 	ymax: 50,
-// 	xmax: 5.2,
-// }
+// 	xmin: 5.7,   // West (longitude)
+// 	ymin: 49.9,  // South (latitude)
+// 	xmax: 5.9,   // East (longitude)
+// 	ymax: 50   // North (latitude)
+// };
+
+const belgiumExtent = {
+	ymin: 49.49,
+	xmin: 2.54,
+	ymax: 51.51,
+	xmax: 6.42,
+}
 
 const params = {
 	service: 'WFS',
