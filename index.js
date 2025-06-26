@@ -185,7 +185,7 @@ async function fetchAndConvertTile(rootIndex, totalLength, bbox, tileId, depth =
 
     // Optimized validation using parallel processing
     console.log('🔄 Validating GPKGs in parallel...');
-    const validGpkgs = await validateGpkgsInParallel(gpkgFiles, 500); // Process 50 at a time
+    const validGpkgs = await validateGpkgsInParallel(gpkgFiles, 100); // Process 100 at a time
     
     console.log(`Found ${validGpkgs.length} valid GPKGs out of ${gpkgFiles.length} total files`);
 
@@ -238,7 +238,7 @@ async function fetchAndConvertTile(rootIndex, totalLength, bbox, tileId, depth =
 })();
 
 // Optimized parallel validation function
-async function validateGpkgsInParallel(gpkgFiles, concurrency = 50) {
+async function validateGpkgsInParallel(gpkgFiles, concurrency = 100) {
     const validGpkgs = [];
     const chunks = [];
     
