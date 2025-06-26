@@ -159,11 +159,11 @@ async function fetchAndConvertTile(rootIndex, totalLength, bbox, tileId, depth =
 		fs.mkdirSync('tiles');
 	}
 
-	// await Promise.all(
-	// 	tiles.map((tile, i) =>
-	// 		limiter.schedule(() => fetchAndConvertTile(i,  tiles.length, tile.bbox, tile.bbox.join('_')))
-	// 	)
-	// );
+	await Promise.all(
+		tiles.map((tile, i) =>
+			limiter.schedule(() => fetchAndConvertTile(i,  tiles.length, tile.bbox, tile.bbox.join('_')))
+		)
+	);
 
 
 	console.log('⌛ Done fetching!');
