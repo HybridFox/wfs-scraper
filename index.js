@@ -1,5 +1,6 @@
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execSync , spawn} = require('child_process');
+const path = require('path');
 const randomUseragent = require('random-useragent');
 const Bottleneck = require('bottleneck');
 const limiter = new Bottleneck({
@@ -158,11 +159,11 @@ async function fetchAndConvertTile(rootIndex, totalLength, bbox, tileId, depth =
 		fs.mkdirSync('tiles');
 	}
 
-	await Promise.all(
-		tiles.map((tile, i) =>
-			limiter.schedule(() => fetchAndConvertTile(i,  tiles.length, tile.bbox, tile.bbox.join('_')))
-		)
-	);
+	// await Promise.all(
+	// 	tiles.map((tile, i) =>
+	// 		limiter.schedule(() => fetchAndConvertTile(i,  tiles.length, tile.bbox, tile.bbox.join('_')))
+	// 	)
+	// );
 
 
 	console.log('⌛ Done fetching!');
@@ -174,69 +175,141 @@ async function fetchAndConvertTile(rootIndex, totalLength, bbox, tileId, depth =
 		fs.unlinkSync(finalGpkg);
 	}
 
-	console.log('🔄 Reading tiles directory...');
-	const tilesDir = 'tiles';
-	const gpkgFiles = fs.readdirSync(tilesDir)
-		.filter(file => file.endsWith('.gpkg'))
-		.map(file => `${tilesDir}/${file}`);
+    console.log('🔄 Reading tiles directory...');
+    const tilesDir = 'tiles';
+    const gpkgFiles = fs.readdirSync(tilesDir)
+        .filter(file => file.endsWith('.gpkg'))
+        .map(file => path.join(tilesDir, file));
 
-	// Create a VRT file that references all valid GPKGs
-	console.log(`Found ${gpkgFiles.length} GPKG files`);
+    console.log(`Found ${gpkgFiles.length} GPKG files`);
 
-	// Create a VRT file that references all valid GPKGs
-	console.log('🔄 Creating VRT file...');
-	const vrtContent = [`<OGRVRTDataSource>`];
-	
-	// Filter and validate GPKGs
-	const validGpkgs = gpkgFiles;
-	// let processedCount = 0;
-	// for (const gpkgPath of gpkgFiles) {
-	// 	processedCount++;
-	// 	if (processedCount % 100 === 0) {
-	// 		console.log(`Validating GPKGs: ${processedCount}/${gpkgFiles.length}`);
-	// 	}
+    // Optimized validation using parallel processing
+    console.log('🔄 Validating GPKGs in parallel...');
+    const validGpkgs = await validateGpkgsInParallel(gpkgFiles, 500); // Process 50 at a time
+    
+    console.log(`Found ${validGpkgs.length} valid GPKGs out of ${gpkgFiles.length} total files`);
 
-	// 	try {
-	// 		execSync(`ogrinfo "${gpkgPath}" parcels`, { stdio: 'ignore' });
-	// 		validGpkgs.push(gpkgPath);
-	// 	} catch (error) {
-	// 		console.log(`⚠️  Layer 'parcels' not found in ${gpkgPath}, skipping...`);
-	// 	}
-	// }
+    if (validGpkgs.length === 0) {
+        console.log('❌ No valid GPKG files found with parcels layer');
+        return;
+    }
 
-	console.log(`Found ${validGpkgs.length} valid GPKGs out of ${gpkgFiles.length} total files`);
-
-	// Add all valid GPKGs to the VRT
-	validGpkgs.forEach(gpkgPath => {
-		vrtContent.push(`
-    <OGRVRTLayer name="parcels">
-        <SrcDataSource>${gpkgPath}</SrcDataSource>
-        <SrcLayer>parcels</SrcLayer>
-    </OGRVRTLayer>`);
-	});
-	
-	vrtContent.push('</OGRVRTDataSource>');
-	
-	// Write the VRT file
-	const vrtPath = 'tiles/merge.vrt';
-	fs.writeFileSync(vrtPath, vrtContent.join('\n'));
-
-	// Perform single merge operation
-	console.log('🔄 Merging all GPKGs in one operation...');
-	try {
-		execSync(`ogr2ogr -f GPKG "${finalGpkg}" "${vrtPath}" -nln parcels -append --config OGR_SQLITE_SYNCHRONOUS OFF --config OGR_SQLITE_CACHE 1024`, { stdio: 'inherit' });
-		console.log('✅ All tiles processed and merged!');
-	} catch (error) {
-		console.error('❌ Error during merge:', error);
-	} finally {
-		// Clean up
-		fs.unlinkSync(vrtPath);
-	}
-
+    // Process in batches to avoid command line length limits and memory issues
+    const batchSize = 1000; // Adjust based on your system    
+    console.log(`🔄 Processing ${validGpkgs.length} files in batches of ${batchSize}...`);
+    
+    for (let i = 0; i < validGpkgs.length; i += batchSize) {
+        const batch = validGpkgs.slice(i, i + batchSize);
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(validGpkgs.length / batchSize);
+        
+        console.log(`🔄 Processing batch ${batchNum}/${totalBatches} (${batch.length} files)...`);
+        
+        const vrtPath = `out/batch_${batchNum}.vrt`;
+        
+        try {
+            // Create VRT for this batch
+            createVrtFile(batch, vrtPath);
+            
+            // Merge this batch
+            const appendFlag = i > 0 ? '-append' : ''; // Don't append for first batch
+            const cmd = `ogr2ogr -f GPKG "${finalGpkg}" "${vrtPath}" -nln parcels ${appendFlag} --config OGR_SQLITE_SYNCHRONOUS OFF --config OGR_SQLITE_CACHE 2048 --config OGR_SQLITE_TEMP_STORE MEMORY`;
+            
+            execSync(cmd, { stdio: 'inherit' });
+            
+            // Clean up batch VRT
+            fs.unlinkSync(vrtPath);
+            
+        } catch (error) {
+            console.error(`❌ Error processing batch ${batchNum}:`, error.message);
+            // Clean up on error
+            if (fs.existsSync(vrtPath)) {
+                fs.unlinkSync(vrtPath);
+            }
+            throw error;
+        }
+    }
+    
+    console.log('✅ All tiles processed and merged successfully!');
 	console.log('🔄 deduping GPKG...');
 	execSync(`ogr2ogr -f GPKG "${dedupedGpkg}" "${finalGpkg}" -nln parcels -sql "SELECT * FROM parcels WHERE ROWID IN (SELECT MIN(ROWID) FROM parcels GROUP BY CaPaKey)" -dialect sqlite`, { stdio: 'inherit' });
 
 	console.log('🟢 Done!', dedupedGpkg);
 })();
 
-// ogr2ogr -f GPKG belgium_deduped.gpkg belgium_merged.gpkg   -nln parcels   -sql "SELECT * FROM parcels WHERE ROWID IN (SELECT MIN(ROWID) FROM parcels GROUP BY CaPaKey)"   -dialect sqlite
+// Optimized parallel validation function
+async function validateGpkgsInParallel(gpkgFiles, concurrency = 50) {
+    const validGpkgs = [];
+    const chunks = [];
+    
+    // Split files into chunks for parallel processing
+    for (let i = 0; i < gpkgFiles.length; i += concurrency) {
+        chunks.push(gpkgFiles.slice(i, i + concurrency));
+    }
+    
+    let processedCount = 0;
+    
+    for (const chunk of chunks) {
+        const promises = chunk.map(async (gpkgPath) => {
+            try {
+                // Use async spawn instead of sync execSync for better performance
+                return await checkGpkgHasParcels(gpkgPath);
+            } catch (error) {
+                return null;
+            }
+        });
+        
+        const results = await Promise.all(promises);
+        
+        // Collect valid results
+        results.forEach((result, index) => {
+            if (result) {
+                validGpkgs.push(chunk[index]);
+            }
+        });
+        
+        processedCount += chunk.length;
+        console.log(`Validated: ${processedCount}/${gpkgFiles.length} files`);
+    }
+    
+    return validGpkgs;
+}
+
+// Async function to check if GPKG has parcels layer
+function checkGpkgHasParcels(gpkgPath) {
+    return new Promise((resolve, reject) => {
+        const child = spawn('ogrinfo', [gpkgPath, 'parcels'], {
+            stdio: ['ignore', 'ignore', 'ignore']
+        });
+        
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve(gpkgPath);
+            } else {
+                reject(new Error(`No parcels layer in ${gpkgPath}`));
+            }
+        });
+        
+        child.on('error', (error) => {
+            reject(error);
+        });
+    });
+}
+
+// Create VRT file for a batch of GPKGs
+function createVrtFile(gpkgPaths, vrtPath) {
+    const vrtContent = ['<OGRVRTDataSource>'];
+    
+    gpkgPaths.forEach(gpkgPath => {
+        // Use absolute paths to avoid issues
+        const absolutePath = path.resolve(gpkgPath);
+        vrtContent.push(`
+    <OGRVRTLayer name="parcels">
+        <SrcDataSource>${absolutePath}</SrcDataSource>
+        <SrcLayer>parcels</SrcLayer>
+    </OGRVRTLayer>`);
+    });
+    
+    vrtContent.push('</OGRVRTDataSource>');
+    fs.writeFileSync(vrtPath, vrtContent.join('\n'));
+}
